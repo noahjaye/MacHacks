@@ -41,6 +41,9 @@ For each concept, provide:
 - A clear description (1-2 sentences)
 - A relevant quote or paraphrase from the paper
 
+Once you have extracted concepts, try reconstructing the paper only from the concepts you have identified. 
+If this cannot be done, re-examine your list and add up to 5 more concepts to fill the gaps.
+
 Return ONLY valid JSON in this exact format:
 {
   "concepts": [
@@ -90,7 +93,7 @@ Your job is to identify meaningful connections between ideas.`;
     const conceptsList = nodes.map((node, idx) => 
       `${idx}: "${node.title}" - ${node.description}`
     ).join('\n');
-
+    console.log("Concepts list", conceptsList)
     const userPrompt = `Given these concepts from an academic paper, identify relationships between them.
 
 Concepts:

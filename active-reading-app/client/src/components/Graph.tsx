@@ -73,8 +73,8 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
       id: node.id,
       data: { label: node.title },
       position: flowNodes.find(n => n.id === node.id)?.position || {
-        x: (index % 4) * 250,
-        y: Math.floor(index / 4) * 150
+        x: (index) * 350,
+        y: Math.floor(index) * 1000
       },
       style: {
         background: highlightedNode === node.id ? '#4299e1' : '#fff',

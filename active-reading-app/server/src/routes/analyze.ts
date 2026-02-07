@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { pdfService } from '../services/pdf.service';
 import { analysisService } from '../services/analysis.service';
 import { AnalyzeResponse } from '../types';
-
+import { llmService } from '../services/llm.service';
 const router = Router();
 
 router.post('/analyze', async (req: Request, res: Response) => {
@@ -58,5 +58,19 @@ router.get('/analysis/:uploadId', (req: Request, res: Response) => {
 
   res.json(response);
 });
+
+
+router.post('/summarize', async (req: Request, res: Response) => {
+  console.log("REQBODY", req.body)
+  const prompt = `
+  You are an expert in the academic field which concerns ${req.body.title}.
+  
+  The user is trying to understand ${req.body.title}, but they may have conceptual gaps in their understanding. 
+  Please qualitatively rate their understanding of ${req.body.title}.`
+  const summary = await llmService.runPrompt(req.body.text, prompt )
+  console.log(summary.data)
+
+  res.json({data: summary.data});
+})
 
 export default router;

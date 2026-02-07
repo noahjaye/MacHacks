@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { IdeaNode } from '../types';
+import axios from 'axios';
 
+const API_BASE = '/api'
 interface IdeaCardProps {
   node: IdeaNode;
   onNotesChange: (id: string, notes: string) => void;
@@ -15,6 +17,22 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
     const newNotes = e.target.value;
     setNotes(newNotes);
     onNotesChange(node.id, newNotes);
+  };
+
+  const handleSummarize = async () => {
+    const req = axios.post(`${API_BASE}/summarize`, { text: notes, topic: node.title });
+    console.log("Req found")
+    // Log the pending promise
+    console.log(req);
+
+    try {
+      // Await the response and log the result
+      const res = await req;
+      console.log("Foudn")
+      console.log('Summarize response:', res.data);
+    } catch (err) {
+      console.error('Summarize error:', err);
+    }
   };
 
   return (
@@ -95,7 +113,7 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
           fontWeight: 600,
           color: '#2d3748'
         }}>
-          📝 Your Understanding (required):
+          📝 Your Understanding:
         </label>
         <textarea
           value={notes}
@@ -113,13 +131,16 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
             outline: 'none'
           }}
         />
+        <button onClick={handleSummarize}>
+          poop
+        </button>
         {!notes.trim() && (
           <p style={{
             margin: '4px 0 0 0',
             fontSize: '12px',
-            color: '#e53e3e'
+            color: '#3e76e5ff'
           }}>
-            ⚠️ Write your own explanation before moving on
+            
           </p>
         )}
       </div>

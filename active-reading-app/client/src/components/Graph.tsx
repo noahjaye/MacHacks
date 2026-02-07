@@ -19,14 +19,15 @@ interface GraphProps {
   highlightedNode?: string;
 }
 
+
 export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlightedNode }) => {
   // Convert our data to ReactFlow format
   const initialNodes: Node[] = nodes.map((node, index) => ({
     id: node.id,
-    data: { label: node.title },
+    data: { label: `${index + 1}. ${node.title}` },
     position: { 
-      x: (index % 4) * 250, 
-      y: Math.floor(index / 4) * 150 
+      x: Math.cos(index/nodes.length*2*Math.PI-1/4*2*Math.PI)*500,//(index) * 350,
+      y: Math.sin(index/nodes.length*2*Math.PI-1/4*2*Math.PI)*350//Math.floor(index) * 1000
     },
     style: {
       background: highlightedNode === node.id ? '#4299e1' : '#fff',
@@ -45,7 +46,6 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
     id: `${edge.from}-${edge.to}`,
     source: edge.from,
     target: edge.to,
-    label: edge.relation,
     type: 'smoothstep',
     animated: false,
     markerEnd: {
@@ -71,7 +71,7 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
   React.useEffect(() => {
     setNodes(nodes.map((node, index) => ({
       id: node.id,
-      data: { label: node.title },
+      data: { label: `${index + 1}. ${node.title}` },
       position: flowNodes.find(n => n.id === node.id)?.position || {
         x: (index) * 350,
         y: Math.floor(index) * 1000
@@ -93,6 +93,47 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
   const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     onNodeClick(node.id);
   }, [onNodeClick]);
+
+  React.useEffect(() => {
+    setEdges(
+      edges.map((edge) => ({
+        id: `${edge.from}-${edge.to}`,
+        source: edge.from,
+        target: edge.to,
+        label: edge.relation,
+        type: 'smoothstep',
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 20,
+          height: 20
+        },
+
+        // HERE is the important part:
+        style: {
+          stroke:
+            highlightedNode &&
+            (edge.from === highlightedNode || edge.to === highlightedNode)
+              ? '#4299e1'      // highlighted blue
+              : '#94a3b8',     // normal gray
+          strokeWidth:
+            highlightedNode &&
+            (edge.from === highlightedNode || edge.to === highlightedNode)
+              ? 3
+              : 2
+        },
+
+        labelStyle: {
+          fontSize: 11,
+          fill:
+            highlightedNode &&
+            (edge.from === highlightedNode || edge.to === highlightedNode)
+              ? '#2b6cb0'
+              : '#64748b',
+          fontWeight: 500
+        }
+      }))
+    );
+  }, [edges, highlightedNode, setEdges]);
 
   if (nodes.length === 0) {
     return (
@@ -130,7 +171,7 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
           fontSize: '13px',
           color: '#4a5568'
         }}>
-          💡 Click nodes to highlight their cards below
+          💡 Click nodes to highlight their cards below 
         </Panel>
       </ReactFlow>
     </div>

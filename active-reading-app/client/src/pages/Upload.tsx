@@ -69,7 +69,7 @@ export const Upload: React.FC = () => {
           color: '#1a202c',
           marginBottom: '12px'
         }}>
-          📚 Active Reading
+          📚 PaperParser
         </h1>
         <p style={{
           fontSize: '18px',

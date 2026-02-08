@@ -1,1 +1,1 @@
-Testing push
+Testing push>sh my-script-test.sh 

@@ -22,25 +22,86 @@ interface GraphProps {
 
 export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlightedNode }) => {
   // Convert our data to ReactFlow format
-  const initialNodes: Node[] = nodes.map((node, index) => ({
-    id: node.id,
-    data: { label: `${index + 1}. ${node.title}` },
-    position: { 
-      x: Math.cos(index/nodes.length*2*Math.PI-1/4*2*Math.PI)*500,//(index) * 350,
-      y: Math.sin(index/nodes.length*2*Math.PI-1/4*2*Math.PI)*350//Math.floor(index) * 1000
-    },
-    style: {
-      background: highlightedNode === node.id ? '#4299e1' : '#fff',
-      color: highlightedNode === node.id ? '#fff' : '#333',
-      border: highlightedNode === node.id ? '2px solid #2b6cb0' : '1px solid #ddd',
-      borderRadius: '8px',
-      padding: '12px',
-      fontSize: '13px',
-      fontWeight: 500,
-      width: 200,
-      cursor: 'pointer'
+  console.log('Rendering Graph with nodes:', nodes);
+  console.log('Rendering Graph with edges:', edges); 
+  
+  const inDegree = new Map<string, number>();
+  nodes.forEach(node => {
+    inDegree.set(node.id, 0);
+  });
+  edges.forEach(edge => {
+    inDegree.set(edge.to, (inDegree.get(edge.to) || 0) + 1);
+  });
+
+  // Build adjacency list for tree structure
+  const children = new Map<string, string[]>();
+  nodes.forEach(node => {
+    children.set(node.id, []);
+  });
+  edges.forEach(edge => {
+    children.get(edge.from)?.push(edge.to);
+  });
+
+  // Calculate hierarchy levels (top-down from root nodes)
+  const levels = new Map<string, number>();
+  const visited = new Set<string>();
+
+  function calculateLevel(nodeId: string): number {
+    if (levels.has(nodeId)) return levels.get(nodeId)!;
+    if (visited.has(nodeId)) return 0; // circular reference
+
+    visited.add(nodeId);
+    const incomingEdges = edges.filter(e => e.to === nodeId);
+    
+    if (incomingEdges.length === 0) {
+      levels.set(nodeId, 0); // root nodes at level 0
+    } else {
+      const maxParentLevel = Math.max(
+        ...incomingEdges.map(e => calculateLevel(e.from))
+      );
+      levels.set(nodeId, maxParentLevel + 1);
     }
-  }));
+    return levels.get(nodeId)!;
+  }
+
+  nodes.forEach(node => calculateLevel(node.id));
+
+  // Group nodes by level
+  const nodesByLevel = new Map<number, string[]>();
+  nodes.forEach(node => {
+    const level = levels.get(node.id) || 0;
+    if (!nodesByLevel.has(level)) {
+      nodesByLevel.set(level, []);
+    }
+    nodesByLevel.get(level)!.push(node.id);
+  });
+
+  const initialNodes: Node[] = nodes.map((node) => {
+    const level = levels.get(node.id) || 0;
+    const nodeIndicesInLevel = nodesByLevel.get(level) || [];
+    const indexInLevel = nodeIndicesInLevel.indexOf(node.id);
+    const nodesInLevel = nodeIndicesInLevel.length;
+
+    return {
+      id: node.id,
+      data: { label: node.title },
+      position: {
+        y: level * 150,
+        x: (indexInLevel - (nodesInLevel - 1) / 2) * 250
+      },
+      style: {
+        background: highlightedNode === node.id ? '#4299e1' : '#fff',
+        color: highlightedNode === node.id ? '#fff' : '#333',
+        border: highlightedNode === node.id ? '2px solid #2b6cb0' : '1px solid #ddd',
+        borderRadius: '8px',
+        padding: '12px',
+        fontSize: '13px',
+        fontWeight: 500,
+        width: 200,
+        cursor: 'pointer'
+      }
+    };
+  });
 
   const initialEdges: Edge[] = edges.map((edge) => ({
     id: `${edge.from}-${edge.to}`,
@@ -100,7 +161,7 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
         id: `${edge.from}-${edge.to}`,
         source: edge.from,
         target: edge.to,
-        label: edge.relation,
+        // label: edge.relation,
         type: 'smoothstep',
         markerEnd: {
           type: MarkerType.ArrowClosed,

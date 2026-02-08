@@ -132,7 +132,7 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
           }}
         />
         <button onClick={handleSummarize}>
-          poop
+          Grade Summary
         </button>
         {!notes.trim() && (
           <p style={{

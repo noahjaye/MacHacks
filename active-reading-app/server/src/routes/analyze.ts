@@ -74,11 +74,25 @@ router.post('/summarize', async (req: Request, res: Response) => {
   // Topic A
   // Topic B
 
-  const prompt = `You are an expert in the academic field which concerns ${req.body.title || 'the topic'}. Be neutral and concise.
+  const prompt = `
+  You are an expert in the academic field which concerns ${req.body.title}. You have neutral tone and are very concise.
 
-Provide a brief qualitative rating of the user's submitted text (no more than ~100 words) and one-line suggestions for next steps.
+  You do not provide explanations beyond what is necessary.
+  
+  The user is trying to understand ${req.body.title}, but they may have conceptual gaps in their understanding. 
+  Please qualitatively rate their understanding of ${req.body.title}.
+  
+  Keep it very brief, no more than 100 words. Provide the rating on a scale of 1-10, where 1 means "No understanding" and 10 means "Expert understanding".
+  
+  Do not introduce the topic for them, just rate their understanding based on the text they provided. This will be shown to them, so refer to them as "you".
+  
+  Provide your response in the following format:
+  <your qualitative rating here> (This should be between 1 and 2 sentences.)
 
-After the brief rating, on a new line include EXACTLY the marker ===SEARCH_TOPICS=== and then list 3-6 short search queries (one per line) that would be good to search for on Wikipedia (or similar high-quality references) to learn more about this topic. The agent should only propose the queries — it must NOT attempt to fetch or return links. Example output format:
+  Overall, you scored a <your numeric rating here>/10
+  <Suggestion of amount of further study needed here>
+  <Optional: brief suggestion of next steps to improve understanding here>
+  After the brief rating, on a new line include EXACTLY the marker ===SEARCH_TOPICS=== and then list 3-6 short search queries (one per line) that would be good to search for on Wikipedia (or similar high-quality references) to learn more about this topic. The agent should only propose the queries — it must NOT attempt to fetch or return links. Example output format:
 
 <brief rating text here>
 ===SEARCH_TOPICS===

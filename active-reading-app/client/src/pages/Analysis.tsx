@@ -181,18 +181,33 @@ export const Analysis: React.FC = () => {
           </h2>
           
           <div>
-            {nodes.map((node) => (
-              <div
-                key={node.id}
-                ref={el => nodeRefs.current[node.id] = el}
-              >
-                <IdeaCard
-                  node={node}
-                  onNotesChange={handleNotesChange}
-                  isHighlighted={highlightedNode === node.id}
-                />
+            {highlightedNode ? (
+              (() => {
+                const selectedNode = nodes.find(n => n.id === highlightedNode);
+                return selectedNode ? (
+                  <div ref={el => nodeRefs.current[highlightedNode] = el}>
+                    <IdeaCard
+                      node={selectedNode}
+                      onNotesChange={handleNotesChange}
+                      isHighlighted={true}
+                    />
+                  </div>
+                ) : null;
+              })()
+            ) : (
+              <div style={{
+                padding: '40px',
+                textAlign: 'center',
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                color: '#718096'
+              }}>
+                <p style={{ margin: 0, fontSize: '16px' }}>
+                  Click on a concept in the graph to view and edit its understanding
+                </p>
               </div>
-            ))}
+            )}
           </div>
         </div>
 

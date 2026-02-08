@@ -12,6 +12,8 @@ interface IdeaCardProps {
 export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighlighted }) => {
   const [notes, setNotes] = useState(node.userNotes || '');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [summaryBox, setSummaryBox] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newNotes = e.target.value;
@@ -20,18 +22,23 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
   };
 
   const handleSummarize = async () => {
-    const req = axios.post(`${API_BASE}/summarize`, { text: notes, topic: node.title });
-    console.log("Req found")
+    setIsSummarizing(true);
+    const req = axios.post(`${API_BASE}/summarize`, { text: notes, topic: node.title, concept: node });
     // Log the pending promise
-    console.log(req);
+    console.log('Summarize request (pending):', req);
 
     try {
-      // Await the response and log the result
       const res = await req;
-      console.log("Foudn")
       console.log('Summarize response:', res.data);
+
+      // Prefer structured fields if present
+      const summaryText = res.data?.summary || res.data?.rating?.suggestedSummary || JSON.stringify(res.data);
+      setSummaryBox(summaryText);
     } catch (err) {
       console.error('Summarize error:', err);
+      setSummaryBox('An error occurred while summarizing. See console for details.');
+    } finally {
+      setIsSummarizing(false);
     }
   };
 
@@ -131,9 +138,33 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
             outline: 'none'
           }}
         />
-        <button onClick={handleSummarize}>
-          Grade Summary
+        <button onClick={handleSummarize} disabled={isSummarizing}>
+          {isSummarizing ? 'Summarizing…' : 'Summarize'}
         </button>
+
+        {summaryBox && (
+          <div style={{
+            marginTop: '12px',
+            padding: '12px',
+            backgroundColor: '#fffbea',
+            border: '1px solid #f6e05e',
+            borderRadius: '6px',
+            position: 'relative'
+          }}>
+            <button onClick={() => setSummaryBox(null)} style={{
+              position: 'absolute',
+              right: '8px',
+              top: '8px',
+              background: 'transparent',
+              border: 'none',
+              fontSize: '14px',
+              cursor: 'pointer'
+            }}>✕</button>
+            <div style={{ whiteSpace: 'pre-wrap', color: '#2d3748', fontSize: '14px' }}>
+              {summaryBox}
+            </div>
+          </div>
+        )}
         {!notes.trim() && (
           <p style={{
             margin: '4px 0 0 0',

@@ -76,17 +76,35 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
     nodesByLevel.get(level)!.push(node.id);
   });
 
+  // deterministic small jitter so nodes in the same level don't line up perfectly
+  const jitterForId = (id: string, maxJitter: number) => {
+    // simple deterministic hash to a -1..1 range
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < id.length; i++) {
+      h ^= id.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    const normalized = (h % 1000) / 1000; // 0..0.999
+    return (normalized * 2 - 1) * maxJitter; // -maxJitter .. +maxJitter
+  };
+
   const initialNodes: Node[] = nodes.map((node) => {
     const level = levels.get(node.id) || 0;
     const nodeIndicesInLevel = nodesByLevel.get(level) || [];
     const indexInLevel = nodeIndicesInLevel.indexOf(node.id);
     const nodesInLevel = nodeIndicesInLevel.length;
+  // give each node a slightly different Y within the same level so edges don't perfectly overlap
+  const levelBaseY = level * 150;
+  const intraLevelSpacing = 40; // nominal vertical spacing between nodes in same level
+  const centeredOffset = (indexInLevel - (nodesInLevel - 1) / 2) * intraLevelSpacing;
+  // add a small deterministic jitter to avoid perfectly regular intervals
+  const jitter = jitterForId(node.id, intraLevelSpacing * 0.45);
 
     return {
       id: node.id,
       data: { label: node.title },
       position: {
-        y: level * 150,
+  y: levelBaseY + centeredOffset + jitter,
         x: (indexInLevel - (nodesInLevel - 1) / 2) * 250
       },
       style: {
@@ -130,13 +148,24 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
 
   // Update nodes when highlighted node changes
   React.useEffect(() => {
-    setNodes(nodes.map((node, index) => ({
+    setNodes(nodes.map((node) => ({
       id: node.id,
-      data: { label: `${index + 1}. ${node.title}` },
-      position: flowNodes.find(n => n.id === node.id)?.position || {
-        x: (index) * 350,
-        y: Math.floor(index) * 1000
-      },
+      data: { label: `${node.title}` },
+      // recompute the preferred position but preserve the existing dragged position when available
+      position: flowNodes.find(n => n.id === node.id)?.position || (() => {
+        const level = levels.get(node.id) || 0;
+        const nodeIndicesInLevel = nodesByLevel.get(level) || [];
+        const indexInLevel = nodeIndicesInLevel.indexOf(node.id);
+        const nodesInLevel = nodeIndicesInLevel.length;
+        const levelBaseY = level * 150;
+        const intraLevelSpacing = 40;
+        const centeredOffset = (indexInLevel - (nodesInLevel - 1) / 2) * intraLevelSpacing;
+        const jitter = jitterForId(node.id, intraLevelSpacing * 0.45);
+        return {
+          x: (indexInLevel - (nodesInLevel - 1) / 2) * 250,
+          y: levelBaseY + centeredOffset + jitter
+        };
+      })(),
       style: {
         background: highlightedNode === node.id ? '#4299e1' : '#fff',
         color: highlightedNode === node.id ? '#fff' : '#333',
@@ -151,7 +180,7 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
     })));
   }, [highlightedNode]);
 
-  const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     onNodeClick(node.id);
   }, [onNodeClick]);
 
@@ -161,7 +190,7 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
         id: `${edge.from}-${edge.to}`,
         source: edge.from,
         target: edge.to,
-        // label: edge.relation,
+        label: edge.relation,
         type: 'smoothstep',
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -231,8 +260,8 @@ export const Graph: React.FC<GraphProps> = ({ nodes, edges, onNodeClick, highlig
           borderRadius: '6px',
           fontSize: '13px',
           color: '#4a5568'
-        }}>
-          💡 Click nodes to highlight their cards below 
+        }}> 
+          Graph
         </Panel>
       </ReactFlow>
     </div>

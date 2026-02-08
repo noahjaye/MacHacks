@@ -3,6 +3,7 @@ import { pdfService } from '../services/pdf.service';
 import { analysisService } from '../services/analysis.service';
 import { AnalyzeResponse } from '../types';
 import { llmService } from '../services/llm.service';
+import axios from 'axios';
 const router = Router();
 
 router.post('/analyze', async (req: Request, res: Response) => {
@@ -62,29 +63,97 @@ router.get('/analysis/:uploadId', (req: Request, res: Response) => {
 
 router.post('/summarize', async (req: Request, res: Response) => {
   console.log("REQBODY", req.body)
-  const prompt = `
-  You are an expert in the academic field which concerns ${req.body.title}. You have neutral tone and are very concise.
+  // We will ask the agent to (1) rate the user's understanding and (2) propose a short list
+  // of topics/queries that a search engine (this program) should run on Wikipedia.
+  // The agent MUST return two sections separated by a line with exactly
+  // "===SEARCH_TOPICS===". The text before that marker is the human-facing
+  // rating/feedback. After the marker, return one topic/query per line.
+  // Example response:
+  // <brief rating text>
+  // ===SEARCH_TOPICS===
+  // Topic A
+  // Topic B
 
-  You do not provide explanations beyond what is necessary.
-  
-  The user is trying to understand ${req.body.title}, but they may have conceptual gaps in their understanding. 
-  Please qualitatively rate their understanding of ${req.body.title}.
-  
-  Keep it very brief, no more than 100 words. Provide the rating on a scale of 1-10, where 1 means "No understanding" and 10 means "Expert understanding".
-  
-  Do not introduce the topic for them, just rate their understanding based on the text they provided. This will be shown to them, so refer to them as "you".
-  
-  Provide your response in the following format:
-  <your qualitative rating here> (This should be between 1 and 2 sentences.)
+  const prompt = `You are an expert in the academic field which concerns ${req.body.title || 'the topic'}. Be neutral and concise.
 
-  Overall, you scored a <your numeric rating here>/10
-  <Suggestion of amount of further study needed here>
-  <Optional: brief suggestion of next steps to improve understanding here>
-  <Wikipedia links or other resources for further study here, in the format "For more information, see: <link>". Provide between one and a few links, depending on what you think is necessary. Do not provide markdown links. >`
-  const summary = await llmService.runPrompt(req.body.text, prompt )
-  console.log(summary.data)
+Provide a brief qualitative rating of the user's submitted text (no more than ~100 words) and one-line suggestions for next steps.
 
-  res.json({data: summary.data});
+After the brief rating, on a new line include EXACTLY the marker ===SEARCH_TOPICS=== and then list 3-6 short search queries (one per line) that would be good to search for on Wikipedia (or similar high-quality references) to learn more about this topic. The agent should only propose the queries — it must NOT attempt to fetch or return links. Example output format:
+
+<brief rating text here>
+===SEARCH_TOPICS===
+Query 1
+Query 2
+Query 3
+
+Be concise; do not include any additional commentary beyond the two sections above.`;
+
+  const aiResponse = await llmService.runPrompt(req.body.text, prompt);
+  if (!aiResponse.success || !aiResponse.data) {
+    return res.status(500).json({ error: 'LLM failed to produce a response' });
+  }
+
+  const raw = aiResponse.data as string;
+  // split at the marker
+  const marker = '===SEARCH_TOPICS===';
+  const markerIndex = raw.indexOf(marker);
+  let humanText = raw;
+  let topicLines: string[] = [];
+
+  if (markerIndex >= 0) {
+    humanText = raw.slice(0, markerIndex).trim();
+    const after = raw.slice(markerIndex + marker.length).trim();
+    topicLines = after.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  } else {
+    // fallback: try to extract lines that look like topics from the end
+    const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length > 3) {
+      // take last up to 6 lines as topics
+      topicLines = lines.slice(-6);
+      humanText = lines.slice(0, -topicLines.length).join('\n');
+    }
+  }
+
+  // For each proposed topic, perform a Wikipedia opensearch query and collect the top URL.
+  const links: string[] = [];
+  for (let i = 0; i < topicLines.length; i++) {
+    const q = topicLines[i];
+    try {
+      // Use the search API (action=query&list=search) which is more robust and
+      // include a User-Agent header per Wikimedia API policy to avoid 403s.
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&srlimit=1&format=json`;
+      const r = await axios.get(searchUrl, {
+        timeout: 8000,
+        headers: {
+          // Wikimedia asks that automated requests include a descriptive User-Agent
+          // with contact info. Replace with a real contact if appropriate.
+          'User-Agent': 'ActiveReadingApp/1.0 (noahjaye@gmail.com)',
+          'Accept': 'application/json'
+        }
+      });
+
+      const searchData = r.data;
+      const hits = searchData?.query?.search;
+      if (Array.isArray(hits) && hits.length > 0) {
+        const title = hits[0].title;
+        const pageUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+        links.push(pageUrl);
+      } else {
+        links.push(`No Wikipedia result for "${q}"`);
+      }
+    } catch (err: any) {
+      console.error('Wikipedia lookup failed for', q, err?.message || err);
+      const status = err?.response?.status;
+      const msg = status ? `Request failed with status code ${status}` : (err?.message || 'error');
+      links.push(`Lookup failed for "${q}": ${msg}`);
+    }
+  }
+
+  // Build the final response: human-facing text, then appended links as "Link #1: <url>"
+  const linkLines = links.map((u, idx) => `Link #${idx + 1}: ${u}`);
+  const finalText = humanText + '\n\n' + linkLines.join('\n');
+
+  res.json({ data: finalText });
 })
 
 export default router;

@@ -13,6 +13,7 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
   const [notes, setNotes] = useState(node.userNotes || '');
   const [isExpanded, setIsExpanded] = useState(false);
   const [summaryBox, setSummaryBox] = useState<string | null>(null);
+  const [resourceLinks, setResourceLinks] = useState<string[]>([]);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -38,11 +39,37 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
       console.log('Summarize response:', res.data);
 
       // Prefer structured fields if present
-      const summaryText = res.data.data.replaceAll('*', '');
-      setSummaryBox(summaryText);
+      const rawText = res.data.data.replaceAll('*', '');
+
+      // If the server appended numbered links like:
+      // Link #1: <url>
+      // Link #2: <url>
+      // ... we want to strip those lines from the pane content and save the
+      // links to `resourceLinks` so they are shown in the Resources area only.
+      const lines = rawText.split(/\r?\n/);
+      // trim trailing empty lines
+      while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+
+      const links: string[] = [];
+      // collect trailing Link #N: lines
+      while (lines.length) {
+        const last = lines[lines.length - 1].trim();
+        const m = last.match(/^Link\s*#\d+\s*:\s*(.+)$/);
+        if (m && m[1]) {
+          links.unshift(m[1].trim());
+          lines.pop();
+        } else {
+          break;
+        }
+      }
+
+      const summaryText = lines.join('\n').trim();
+      setSummaryBox(summaryText || null);
+      setResourceLinks(links);
     } catch (err) {
       console.error('Summarize error:', err);
       setSummaryBox('An error occurred while summarizing. See console for details.');
+      setResourceLinks([]);
     } finally {
       setIsSummarizing(false);
     }
@@ -173,8 +200,8 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
         )}
 
         {summaryBox && (() => {
-          const urls = extractAllUrls(summaryBox);
-          
+          const urls = resourceLinks.length ? resourceLinks : extractAllUrls(summaryBox);
+
           if (urls.length > 0) {
             return (
               <div style={{

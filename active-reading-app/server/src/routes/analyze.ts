@@ -63,10 +63,24 @@ router.get('/analysis/:uploadId', (req: Request, res: Response) => {
 router.post('/summarize', async (req: Request, res: Response) => {
   console.log("REQBODY", req.body)
   const prompt = `
-  You are an expert in the academic field which concerns ${req.body.title}.
+  You are an expert in the academic field which concerns ${req.body.title}. You have neutral tone and are very concise.
+
+  You do not provide explanations beyond what is necessary.
   
   The user is trying to understand ${req.body.title}, but they may have conceptual gaps in their understanding. 
-  Please qualitatively rate their understanding of ${req.body.title}.`
+  Please qualitatively rate their understanding of ${req.body.title}.
+  
+  Keep it very brief, no more than 100 words. Provide the rating on a scale of 1-10, where 1 means "No understanding" and 10 means "Expert understanding".
+  
+  Do not introduce the topic for them, just rate their understanding based on the text they provided. This will be shown to them, so refer to them as "you".
+  
+  Provide your response in the following format:
+  <your qualitative rating here> (This should be between 1 and 2 sentences.)
+
+  Overall, you scored a <your numeric rating here>/10
+  <Suggestion of amount of further study needed here>
+  <Optional: brief suggestion of next steps to improve understanding here>
+  <Wikipedia links or other resources for further study here, in the format "For more information, see: <link>". Provide between one and a few links, depending on what you think is necessary. Do not provide markdown links. >`
   const summary = await llmService.runPrompt(req.body.text, prompt )
   console.log(summary.data)
 

@@ -21,6 +21,12 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
     onNotesChange(node.id, newNotes);
   };
 
+  const extractAllUrls = (text: string): string[] => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const matches = text.match(urlRegex) || [];
+    return [...new Set(matches)]; // Remove duplicates
+  };
+
   const handleSummarize = async () => {
     setIsSummarizing(true);
     const req = axios.post(`${API_BASE}/summarize`, { text: notes, topic: node.title, concept: node });
@@ -32,7 +38,7 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
       console.log('Summarize response:', res.data);
 
       // Prefer structured fields if present
-      const summaryText = res.data?.summary || res.data?.rating?.suggestedSummary || JSON.stringify(res.data);
+      const summaryText = res.data.data.replaceAll('*', '');
       setSummaryBox(summaryText);
     } catch (err) {
       console.error('Summarize error:', err);
@@ -165,6 +171,67 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ node, onNotesChange, isHighl
             </div>
           </div>
         )}
+
+        {summaryBox && (() => {
+          const urls = extractAllUrls(summaryBox);
+          
+          if (urls.length > 0) {
+            return (
+              <div style={{
+                marginTop: '12px',
+                padding: '12px',
+                backgroundColor: '#e6fffa',
+                border: '2px solid #0891b2',
+                borderRadius: '6px'
+              }}>
+                <p style={{
+                  margin: '0 0 12px 0',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#0891b2',
+                  textTransform: 'uppercase'
+                }}>📚 Resource Links ({urls.length})</p>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  {urls.map((url, index) => (
+                    <a
+                      key={index}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'block',
+                        color: '#0891b2',
+                        textDecoration: 'none',
+                        fontSize: '13px',
+                        padding: '8px 10px',
+                        backgroundColor: '#f0fdf4',
+                        borderRadius: '4px',
+                        border: '1px solid #86efac',
+                        wordBreak: 'break-all',
+                        transition: 'all 0.2s',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#dcfce7';
+                        e.currentTarget.style.textDecoration = 'underline';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f0fdf4';
+                        e.currentTarget.style.textDecoration = 'none';
+                      }}
+                    >
+                      🔗 {url}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+        })()}
         {!notes.trim() && (
           <p style={{
             margin: '4px 0 0 0',

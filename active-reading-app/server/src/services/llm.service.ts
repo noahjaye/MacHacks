@@ -14,12 +14,16 @@ interface LLMResponse {
 
 export class LLMService {
   private apiKey: string;
+  private geminiKey: string;
+  private geminiUrl: string;
   private model: string;
   private maxRetries: number = 3;
   private timeout: number = 60000; // 60 seconds
 
   constructor() {
     this.apiKey = process.env.OPENROUTER_API_KEY || '';
+    this.geminiKey = process.env.GEMINI_API_KEY || '';
+    this.geminiUrl = process.env.GEMINI_API_URL || '';
     this.model = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free';
     
     if (!this.apiKey) {
@@ -27,7 +31,76 @@ export class LLMService {
     }
   }
 
-  async runPrompt(prompt: string, systemPrompt?: string): Promise<LLMResponse> {
+  /**
+   * Run a chat prompt. By default this uses the OpenRouter API. If useGemini
+   * is true, the Gemini API (configured via GEMINI_API_URL and GEMINI_API_KEY)
+   * will be called instead. The existing OpenRouter flow is unchanged.
+   */
+  async runPrompt(prompt: string, systemPrompt?: string, useGemini: boolean = false): Promise<LLMResponse> {
+    if (useGemini) {
+      if (!this.geminiKey || !this.geminiUrl) {
+        return { success: false, error: 'Gemini API not configured (GEMINI_API_KEY/GEMINI_API_URL)'.toString() };
+      }
+
+      for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+        try {
+          console.log(`🤖 Gemini Request (attempt ${attempt}/${this.maxRetries})`);
+          const messages: any[] = [];
+          if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+          messages.push({ role: 'user', content: prompt });
+
+          const body = {
+            model: process.env.GEMINI_MODEL || 'gemini',
+            messages,
+            temperature: 0.3,
+            max_tokens: 4000
+          };
+
+          const r = await axios.post(this.geminiUrl, body, {
+            headers: {
+              'Authorization': `Bearer ${this.geminiKey}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: this.timeout
+          });
+
+          // Try a few common response shapes (OpenAI-like or Gemini-like)
+          const data = r.data;
+          let content: any = null;
+          if (data?.choices && data.choices[0]?.message?.content) {
+            content = data.choices[0].message.content;
+          } else if (data?.output && Array.isArray(data.output) && data.output[0]?.content) {
+            // e.g., Google generative responses
+            const c = data.output[0].content;
+            if (Array.isArray(c)) {
+              // content may be [{type: 'output_text', text: '...'}]
+              const txt = c.map((part: any) => part?.text || '').join('');
+              content = txt;
+            } else if (typeof c === 'string') {
+              content = c;
+            } else if (c?.text) {
+              content = c.text;
+            }
+          } else if (typeof data === 'string') {
+            content = data;
+          }
+
+          if (!content) throw new Error('No content in Gemini response');
+
+          return { success: true, data: content };
+        } catch (error: any) {
+          console.error(`❌ Gemini Error (attempt ${attempt}):`, error?.message || error);
+          if (attempt === this.maxRetries) {
+            return { success: false, error: error?.message || 'Gemini request failed' };
+          }
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+        }
+      }
+
+      return { success: false, error: 'Max retries exceeded' };
+    }
+
+    // Default: OpenRouter flow (unchanged)
     if (!this.apiKey) {
       return {
         success: false,
@@ -64,7 +137,7 @@ export class LLMService {
           }),
         });
         console.log("RESPONSE", response)*/
-        let content = 1
+  let content: string = '';
         const response = await axios.post(
           OPENROUTER_API_URL,
           {
